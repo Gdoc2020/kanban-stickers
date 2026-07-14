@@ -23,10 +23,22 @@ async function run() {
 
     const boardScroller = document.querySelector('#kanban');
     assert(getComputedStyle(boardScroller).overflowX === 'scroll', 'Horizontal board scrollbar is not permanently available');
+    assert(getComputedStyle(boardScroller).overflowY === 'scroll', 'Vertical board scrollbar is not permanently available');
     assert(boardScroller.scrollWidth > boardScroller.clientWidth, 'Board columns do not create a horizontally scrollable workspace');
+    const tallMarker = document.createElement('div');
+    tallMarker.style.height = '1200px';
+    document.querySelector('.card-list').appendChild(tallMarker); await wait();
+    assert(boardScroller.scrollHeight > boardScroller.clientHeight, 'Tall board content does not create vertical scrolling');
+    boardScroller.scrollTop = 120;
+    assert(boardScroller.scrollTop > 0, 'Board cannot scroll vertically');
+    boardScroller.scrollTop = 0;
     boardScroller.scrollLeft = 0;
-    boardScroller.dispatchEvent(new WheelEvent('wheel', { deltaY: 160, bubbles: true, cancelable: true })); await wait();
-    assert(boardScroller.scrollLeft > 0, 'Mouse wheel did not scroll the board horizontally');
+    const verticalWheel = new WheelEvent('wheel', { deltaY: 160, bubbles: true, cancelable: true });
+    boardScroller.dispatchEvent(verticalWheel); await wait();
+    assert(!verticalWheel.defaultPrevented && boardScroller.scrollLeft === 0, 'Normal mouse wheel was incorrectly redirected from vertical to horizontal scrolling');
+    boardScroller.dispatchEvent(new WheelEvent('wheel', { deltaY: 160, shiftKey: true, bubbles: true, cancelable: true })); await wait();
+    assert(boardScroller.scrollLeft > 0, 'Shift + mouse wheel did not scroll the board horizontally');
+    tallMarker.remove();
     document.querySelector('#zoom-out').click(); await wait();
     assert(state.settings.boardZoom === 0.9 && document.querySelector('#zoom-reset').textContent === '90%', 'Board zoom out failed');
     document.querySelector('#zoom-reset').click(); await wait();

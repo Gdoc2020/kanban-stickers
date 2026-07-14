@@ -1,14 +1,14 @@
 {
   "name": "kanban-stickers",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A lightweight desktop Kanban board for Windows",
   "main": "electron/main.js",
   "author": "Technochip — owned by Grigory Bzhitov",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "check": "node --check electron/main.js && node --check electron/preload.js && node --check src/app.js",
-    "test": "electron tests/smoke.js && node tests/storage.js",
+    "check": "node --check electron/main.js && node --check electron/preload.js && node --check src/app.js && node --check tests/smoke.js && node --check tests/storage.js && node --check tests/window-bounds.js",
+    "test": "electron tests/smoke.js && node tests/storage.js && electron tests/window-bounds.js",
     "dist": "electron-builder --win nsis portable"
   },
   "devDependencies": {

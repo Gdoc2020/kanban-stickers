@@ -37,7 +37,7 @@ function createApplicationMenu() {
         { label: 'Zoom out', accelerator: 'CmdOrCtrl+-', click: () => sendMenuCommand('zoom-out') },
         { label: 'Reset zoom', accelerator: 'CmdOrCtrl+0', click: () => sendMenuCommand('zoom-reset') },
         { type: 'separator' },
-        { role: 'togglefullscreen' }
+        { label: 'Maximize / Restore', accelerator: 'F11', click: () => { if (mainWindow.isMaximized()) mainWindow.unmaximize(); else mainWindow.maximize(); } }
       ]
     },
     {
@@ -97,7 +97,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   ipcMain.handle('window:set-always-on-top', (_event, value) => {
-    mainWindow.setAlwaysOnTop(Boolean(value), 'floating');
+    mainWindow.setAlwaysOnTop(Boolean(value), 'normal');
     return mainWindow.isAlwaysOnTop();
   });
 
