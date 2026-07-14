@@ -47,7 +47,7 @@
           <button type="button" class="zoom-button" id="zoom-in" data-i18n-title="zoomIn" aria-label="Zoom in">＋</button>
         </div>
         <button type="button" class="quiet-button" id="export-project-board" data-i18n="exportBoardProject">⇩ Microsoft Project</button>
-        <button class="quiet-button" id="add-column" data-i18n="addColumn">＋ Добавить колонку</button>
+        <button type="button" class="quiet-button" id="add-column" data-i18n="addColumn">＋ Добавить колонку</button>
       </section>
 
       <section class="kanban" id="kanban" aria-label="Kanban доска"><div class="kanban-content" id="kanban-content"></div></section>
@@ -66,6 +66,7 @@
         <label data-i18n-label="dueLabel">Срок<input id="card-due" type="date"></label>
         <label data-i18n-label="colorLabel">Цвет карточки<input id="card-color" type="color" value="#fff1a8"></label>
         <label data-i18n-label="assigneeLabel">Исполнитель<select id="card-assignee"></select></label>
+        <label data-i18n-label="progressLabel">Выполнение (%)<input id="card-progress" type="number" min="0" max="100" step="1" value="0"></label>
       </div>
       <label class="flag-toggle"><input id="card-flagged" type="checkbox"><span>🚩</span><strong data-i18n="redFlagCard">Красный флаг — критический приоритет</strong></label>
       <section class="checklist-editor">
@@ -79,15 +80,15 @@
 
   <dialog id="text-dialog" class="modal small-modal">
     <form method="dialog" id="text-form">
-      <div class="modal-header"><h2 id="text-dialog-title">Название</h2><button value="cancel" class="close-button">×</button></div>
-      <label id="text-dialog-label">Название<input id="text-dialog-input" maxlength="60" required></label>
-      <div class="modal-actions"><button value="cancel" class="secondary-button" data-i18n="cancel">Отмена</button><button type="submit" value="default" class="primary-button" data-i18n="create">Создать</button></div>
+      <div class="modal-header"><h2 id="text-dialog-title">Название</h2><button type="button" class="close-button" data-close-dialog>×</button></div>
+      <label id="text-dialog-label">Название<input id="text-dialog-input" maxlength="60" required autocomplete="off"></label>
+      <div class="modal-actions"><button type="button" class="secondary-button" data-close-dialog data-i18n="cancel">Отмена</button><button type="submit" value="default" class="primary-button" data-i18n="create">Создать</button></div>
     </form>
   </dialog>
 
   <dialog id="settings-dialog" class="modal small-modal">
     <form method="dialog">
-      <div class="modal-header"><h2 data-i18n="settingsTitle">Настройки</h2><button value="cancel" class="close-button">×</button></div>
+      <div class="modal-header"><h2 data-i18n="settingsTitle">Настройки</h2><button type="button" class="close-button" data-close-dialog>×</button></div>
       <label class="language-row"><span data-i18n="language">Язык интерфейса</span><select id="language-select"><option value="ru">Русский</option><option value="en">English</option><option value="tr">Türkçe</option></select></label>
       <label class="toggle-row"><span><strong data-i18n="startWithWindows">Запускать вместе с Windows</strong><small data-i18n="trayHint">Приложение будет доступно в системном трее</small></span><input type="checkbox" id="startup-toggle"></label>
       <section class="users-section">
@@ -105,16 +106,16 @@
 
   <dialog id="user-dialog" class="modal small-modal">
     <form method="dialog" id="user-form">
-      <div class="modal-header"><h2 data-i18n="newUser">Новый пользователь</h2><button value="cancel" class="close-button">×</button></div>
+      <div class="modal-header"><h2 data-i18n="newUser">Новый пользователь</h2><button type="button" class="close-button" data-close-dialog>×</button></div>
       <label data-i18n-label="userName">Имя пользователя<input id="user-name" maxlength="80" required></label>
       <label data-i18n-label="emailLabel">Email<input id="user-email" type="email" maxlength="160" required placeholder="name@example.com"></label>
       <label data-i18n-label="userColor">Цвет пользователя<input id="user-color" type="color" value="#6c5ce7"></label>
-      <div class="modal-actions"><button value="cancel" class="secondary-button" data-i18n="cancel">Отмена</button><button type="submit" value="default" class="primary-button" data-i18n="create">Создать</button></div>
+      <div class="modal-actions"><button type="button" class="secondary-button" data-close-dialog data-i18n="cancel">Отмена</button><button type="submit" value="default" class="primary-button" data-i18n="create">Создать</button></div>
     </form>
   </dialog>
 
   <dialog id="archive-dialog" class="modal archive-modal">
-    <div class="modal-header"><h2 data-i18n="archiveTitle">Архив карточек</h2><button class="close-button" id="close-archive">×</button></div>
+    <div class="modal-header"><h2 data-i18n="archiveTitle">Архив карточек</h2><button type="button" class="close-button" id="close-archive" data-close-dialog>×</button></div>
     <div id="archive-list" class="archive-list"></div>
   </dialog>
 

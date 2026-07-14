@@ -43,12 +43,41 @@ async function run() {
     assert(state.settings.boardZoom === 0.9 && document.querySelector('#zoom-reset').textContent === '90%', 'Board zoom out failed');
     document.querySelector('#zoom-reset').click(); await wait();
     assert(state.settings.boardZoom === 1 && document.querySelector('#zoom-reset').textContent === '100%', 'Board zoom reset failed');
+
+    const columnsBeforeCancel = activeBoard().columns.length;
+    document.querySelector('#add-column').click(); await wait();
+    assert(document.querySelector('#text-dialog').open, 'New column dialog did not open');
+    document.querySelector('#text-dialog .close-button').click(); await wait();
+    assert(!document.querySelector('#text-dialog').open, 'New column dialog close button failed with an empty required name');
+    assert(activeBoard().columns.length === columnsBeforeCancel, 'Closing the new column dialog changed the board');
+    document.querySelector('#add-column').click(); await wait();
+    document.querySelector('#text-dialog .modal-actions [data-close-dialog]').click(); await wait();
+    assert(!document.querySelector('#text-dialog').open, 'New column dialog Cancel button failed with an empty required name');
+    assert(activeBoard().columns.length === columnsBeforeCancel, 'Cancelling a new column changed the board');
+
     boardScroller.scrollLeft = 0;
     document.querySelector('#add-column').click();
     document.querySelector('#text-dialog-input').value = 'Temporary scroll test';
     document.querySelector('#text-form').requestSubmit(); await wait(400);
     assert(document.querySelectorAll('.column').length === 4, 'Add column failed');
     assert(boardScroller.scrollLeft > 0, 'The board did not reveal the newly added rightmost column');
+    const temporaryColumn = activeBoard().columns.at(-1);
+    const temporaryColumnInput = document.querySelector('[data-column-title="' + temporaryColumn.id + '"]');
+    temporaryColumnInput.value = 'Renamed test column';
+    temporaryColumnInput.dispatchEvent(new Event('input', { bubbles: true }));
+    temporaryColumnInput.dispatchEvent(new Event('change', { bubbles: true })); await wait();
+    assert(temporaryColumn.title === 'Renamed test column', 'Editing a column name did not update the board');
+    const savedAfterRename = JSON.parse(localStorage.getItem('kanban-stickers-data-v1'));
+    const savedBoardAfterRename = savedAfterRename.boards.find((board) => board.id === state.data.activeBoardId);
+    assert(savedBoardAfterRename.columns.find((column) => column.id === temporaryColumn.id)?.title === 'Renamed test column', 'Edited column name was not persisted');
+    render(); await wait();
+    const persistedColumnInput = document.querySelector('[data-column-title="' + temporaryColumn.id + '"]');
+    assert(persistedColumnInput.value === 'Renamed test column', 'Edited column name was lost after rendering');
+    persistedColumnInput.focus();
+    persistedColumnInput.value = 'Cancelled rename';
+    persistedColumnInput.dispatchEvent(new Event('input', { bubbles: true }));
+    persistedColumnInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); await wait();
+    assert(temporaryColumn.title === 'Renamed test column' && persistedColumnInput.value === 'Renamed test column', 'Escape did not cancel a column rename: title=' + temporaryColumn.title + ', value=' + persistedColumnInput.value + ', original=' + persistedColumnInput.dataset.originalTitle);
     activeBoard().columns.pop(); render(); await wait();
 
     const cardsBeforeCancel = document.querySelectorAll('.card').length;
@@ -65,14 +94,31 @@ async function run() {
     assert(document.querySelector('#new-board').textContent.includes('Yeni pano'), 'Turkish translation failed');
     language.value = 'ru'; language.dispatchEvent(new Event('change', { bubbles: true })); await wait();
 
+    const usersBeforeCancel = state.data.users.length;
     document.querySelector('#open-settings').click(); await wait();
-    document.querySelector('#add-user').click();
+    assert(document.querySelector('#settings-dialog').open, 'Settings dialog did not open');
+    document.querySelector('#add-user').click(); await wait();
+    assert(document.querySelector('#user-dialog').open, 'New user dialog did not open');
+    document.querySelector('#user-dialog .close-button').click(); await wait();
+    assert(!document.querySelector('#user-dialog').open, 'New user dialog close button failed with empty required fields');
+    assert(state.data.users.length === usersBeforeCancel, 'Closing the new user dialog created a user');
+    document.querySelector('#add-user').click(); await wait();
+    document.querySelector('#user-dialog .modal-actions [data-close-dialog]').click(); await wait();
+    assert(!document.querySelector('#user-dialog').open, 'New user dialog Cancel button failed with empty required fields');
+    assert(state.data.users.length === usersBeforeCancel, 'Cancelling a new user created a user');
+    document.querySelector('#add-user').click(); await wait();
     document.querySelector('#user-name').value = 'Alex Tester';
     document.querySelector('#user-email').value = 'alex@example.com';
     document.querySelector('#user-color').value = '#3366cc';
     document.querySelector('#user-form').requestSubmit(); await wait();
     assert(document.querySelector('#users-list').textContent.includes('alex@example.com'), 'User creation with email failed');
-    document.querySelector('#settings-dialog').close();
+    document.querySelector('#settings-dialog .close-button').click(); await wait();
+    assert(!document.querySelector('#settings-dialog').open, 'Settings dialog close button failed');
+
+    document.querySelector('#show-archive').click(); await wait();
+    assert(document.querySelector('#archive-dialog').open, 'Archive dialog did not open');
+    document.querySelector('#archive-dialog .close-button').click(); await wait();
+    assert(!document.querySelector('#archive-dialog').open, 'Archive dialog close button failed');
 
     document.querySelector('#add-card').click();
     document.querySelector('#card-title').value = 'Тестовая карточка';
@@ -80,6 +126,7 @@ async function run() {
     document.querySelector('#card-priority').value = 'high';
     document.querySelector('#card-color').value = '#12ab89';
     document.querySelector('#card-assignee').value = state.data.users[0].id;
+    document.querySelector('#card-progress').value = '65';
     document.querySelector('#card-flagged').checked = true;
     document.querySelector('#checklist-new').value = 'Критический пункт';
     document.querySelector('#checklist-add').click();
@@ -90,6 +137,11 @@ async function run() {
     assert(customCard && customCard.getAttribute('style').includes('#12ab89'), 'Custom card color failed');
     assert(customCard.textContent.includes('alex@example.com'), 'Card assignment failed');
     assert(customCard.classList.contains('is-flagged') && customCard.textContent.includes('1'), 'Red flag or checklist summary failed');
+    assert(customCard.textContent.includes('65%'), 'Explicit task completion percentage is missing from the card');
+    assert(customCard.querySelector('.card-progress span')?.style.width === '65%', 'Task progress bar does not display 65%');
+    customCard.click(); await wait();
+    assert(document.querySelector('#card-progress').value === '65', 'Saved task completion percentage was not restored for editing');
+    document.querySelector('#card-dialog .close-button').click(); await wait();
 
     const sourceId = customCard.dataset.cardId;
     const normalCard = activeBoard().cards.find((card) => card.priority === 'normal');
@@ -121,11 +173,19 @@ async function run() {
     assert(parsed.getElementsByTagNameNS('*', 'Summary').length === 6 && [...parsed.getElementsByTagNameNS('*', 'Summary')].filter((item) => item.textContent === '1').length === 3, 'Project summary-task hierarchy is incomplete');
     assert([...parsed.getElementsByTagNameNS('*', 'OutlineLevel')].map((item) => item.textContent).join(',') === '1,2,1,2,2,1', 'Project outline hierarchy would not display as status groups and card subtasks');
     assert(xml.includes('alex@example.com'), 'Project resource email export failed');
+    const exportedCardTitle = activeBoard().cards.find((card) => card.id === sourceId).title;
+    const exportedCardTask = [...parsed.getElementsByTagNameNS('*', 'Task')].find((task) => task.getElementsByTagNameNS('*', 'Name')[0]?.textContent === exportedCardTitle);
+    assert(exportedCardTask, 'Custom card is missing from the Microsoft Project export');
+    assert(exportedCardTask.getElementsByTagNameNS('*', 'PercentComplete')[0]?.textContent === '65', 'Microsoft Project PercentComplete did not export 65%');
+    assert(exportedCardTask.getElementsByTagNameNS('*', 'PercentWorkComplete')[0]?.textContent === '65', 'Microsoft Project PercentWorkComplete did not export 65%');
     const taskUids = new Set([...parsed.getElementsByTagNameNS('*', 'Task')].map((task) => task.getElementsByTagNameNS('*', 'UID')[0].textContent));
     const resourceUids = new Set([...parsed.getElementsByTagNameNS('*', 'Resource')].map((resource) => resource.getElementsByTagNameNS('*', 'UID')[0].textContent));
     assert([...parsed.getElementsByTagNameNS('*', 'Assignment')].every((assignment) => taskUids.has(assignment.getElementsByTagNameNS('*', 'TaskUID')[0].textContent) && resourceUids.has(assignment.getElementsByTagNameNS('*', 'ResourceUID')[0].textContent)), 'Project assignments reference missing tasks or resources');
+    assert([...parsed.getElementsByTagNameNS('*', 'Assignment')].some((assignment) => assignment.getElementsByTagNameNS('*', 'TaskUID')[0]?.textContent === exportedCardTask.getElementsByTagNameNS('*', 'UID')[0]?.textContent && assignment.getElementsByTagNameNS('*', 'PercentWorkComplete')[0]?.textContent === '65'), 'Microsoft Project assignment did not export 65%');
     assert(xml.includes('<Priority>1000</Priority>') && xml.includes('Критический пункт'), 'Red flag checklist Project export failed');
     assert(xml.includes('&amp;') && xml.includes('&lt;XML&gt;'), 'Project XML text escaping failed');
+    assert(xml.includes('<CurrencyCode>USD</CurrencyCode>'), 'Project XML is missing the schema-required currency code');
+    assert(xml.indexOf('<CurrencyCode>') < xml.indexOf('<DefaultStartTime>'), 'Project currency code is not in Microsoft schema order');
     assert(xml.indexOf('<DefaultStartTime>') < xml.indexOf('<MinutesPerDay>'), 'Project-level elements are not in Microsoft schema order');
     assert(xml.indexOf('<PercentWorkComplete>') < xml.indexOf('<Notes>'), 'Task notes are not in Microsoft schema order');
     const unassignedBoard = { ...activeBoard(), cards: activeBoard().cards.map((card) => ({ ...card, assigneeId: null })) };
