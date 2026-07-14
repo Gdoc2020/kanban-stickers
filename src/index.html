@@ -50,7 +50,7 @@
 
   <dialog id="card-dialog" class="modal">
     <form method="dialog" id="card-form">
-      <div class="modal-header"><h2 id="card-dialog-title">Новая карточка</h2><button value="cancel" class="close-button">×</button></div>
+      <div class="modal-header"><h2 id="card-dialog-title">Новая карточка</h2><button type="button" class="close-button" data-close-dialog>×</button></div>
       <input type="hidden" id="card-id">
       <label data-i18n-label="titleLabel">Название<input id="card-title" maxlength="120" required placeholder="Что нужно сделать?" data-i18n-placeholder="cardTitlePlaceholder"></label>
       <label data-i18n-label="descriptionLabel">Описание<textarea id="card-description" rows="4" maxlength="1000" placeholder="Заметки и детали" data-i18n-placeholder="descriptionPlaceholder"></textarea></label>
@@ -67,7 +67,7 @@
         <div id="checklist-items" class="checklist-items"></div>
         <div class="checklist-add"><input id="checklist-new" maxlength="180" data-i18n-placeholder="checklistPlaceholder" placeholder="Добавить пункт"><button type="button" id="checklist-add" class="secondary-button" data-i18n="addItem">＋ Добавить</button></div>
       </section>
-      <div class="modal-actions"><button value="cancel" class="secondary-button" data-i18n="cancel">Отмена</button><button type="submit" value="default" class="primary-button" data-i18n="save">Сохранить</button></div>
+      <div class="modal-actions"><button type="button" class="secondary-button" data-close-dialog data-i18n="cancel">Отмена</button><button type="submit" value="default" class="primary-button" data-i18n="save">Сохранить</button></div>
     </form>
   </dialog>
 

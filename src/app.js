@@ -321,6 +321,11 @@ $('#new-board').addEventListener('click', () => openTextDialog({ title: t('newBo
 $('#add-column').addEventListener('click', () => openTextDialog({ title: t('newColumnTitle'), label: t('columnName'), action: (title) => { activeBoard().columns.push({ id: uid(), title }); render(); } }));
 $('#add-card').addEventListener('click', () => openCardDialog());
 
+els.cardDialog.addEventListener('click', (event) => {
+  if (!event.target.closest('[data-close-dialog]')) return;
+  els.cardDialog.close('cancel');
+});
+
 els.boardList.addEventListener('click', (event) => {
   const item = event.target.closest('[data-board-id]');
   if (item) { state.data.activeBoardId = item.dataset.boardId; $('#sidebar').classList.remove('open'); render(); }

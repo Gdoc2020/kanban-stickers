@@ -20,6 +20,17 @@ async function run() {
     language.value = 'en'; language.dispatchEvent(new Event('change', { bubbles: true })); await wait();
     assert(document.querySelector('#new-board').textContent.includes('New board'), 'English translation failed');
     assert(document.querySelector('[data-i18n-label="columnLabel"]').firstChild.nodeValue === 'Task status', 'English form translation failed');
+
+    const cardsBeforeCancel = document.querySelectorAll('.card').length;
+    document.querySelector('#add-card').click(); await wait();
+    assert(document.querySelector('#card-dialog').open, 'New card dialog did not open');
+    document.querySelector('#card-dialog .close-button').click(); await wait();
+    assert(!document.querySelector('#card-dialog').open, 'New card dialog close button failed with an empty required title');
+    document.querySelector('#add-card').click(); await wait();
+    document.querySelector('#card-dialog .modal-actions [data-close-dialog]').click(); await wait();
+    assert(!document.querySelector('#card-dialog').open, 'New card dialog Cancel button failed with an empty required title');
+    assert(document.querySelectorAll('.card').length === cardsBeforeCancel, 'Cancelling a new card changed the board');
+
     language.value = 'tr'; language.dispatchEvent(new Event('change', { bubbles: true })); await wait();
     assert(document.querySelector('#new-board').textContent.includes('Yeni pano'), 'Turkish translation failed');
     language.value = 'ru'; language.dispatchEvent(new Event('change', { bubbles: true })); await wait();
