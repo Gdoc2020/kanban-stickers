@@ -3,6 +3,7 @@ const SETTINGS_KEY = 'kanban-stickers-settings-v1';
 
 const I18N = {
   ru: {
+    zoomOut: 'Уменьшить масштаб', zoomReset: 'Сбросить масштаб', zoomIn: 'Увеличить масштаб', exportBoardProject: '⇩ В Microsoft Project', projectSaved: 'Проект сохранён',
     redFlagCard: 'Красный флаг — критический приоритет', checklistTitle: 'Пункты карточки', checklistPlaceholder: 'Добавить пункт', addItem: '＋ Добавить',
     newBoard: '＋ Новая доска', archive: '⌁ Архив', settings: '⚙ Настройки', search: 'Поиск', addCard: '＋ Карточка',
     filterAll: 'Все', filterImportant: 'Важные', filterDue: 'Со сроком', addColumn: '＋ Добавить колонку', language: 'Язык интерфейса',
@@ -15,6 +16,7 @@ const I18N = {
     archiveEmpty: 'Архив пока пуст', restore: 'Восстановить', deleteForever: 'Удалить навсегда?', todo: 'Запланировано', doing: 'В работе', done: 'Готово'
   },
   en: {
+    zoomOut: 'Zoom out', zoomReset: 'Reset zoom', zoomIn: 'Zoom in', exportBoardProject: '⇩ Export to Microsoft Project', projectSaved: 'Project saved',
     redFlagCard: 'Red flag — critical priority', checklistTitle: 'Card checklist', checklistPlaceholder: 'Add an item', addItem: '＋ Add',
     newBoard: '＋ New board', archive: '⌁ Archive', settings: '⚙ Settings', search: 'Search', addCard: '＋ Card',
     filterAll: 'All', filterImportant: 'Important', filterDue: 'With due date', addColumn: '＋ Add column', language: 'Interface language',
@@ -26,6 +28,7 @@ const I18N = {
     importFailed: 'Could not read the backup file', projectExported: 'Microsoft Project file saved', archiveEmpty: 'The archive is empty', restore: 'Restore', deleteForever: 'Delete this card permanently?', todo: 'Planned', doing: 'In progress', done: 'Done'
   },
   tr: {
+    zoomOut: 'Uzaklaştır', zoomReset: 'Yakınlaştırmayı sıfırla', zoomIn: 'Yakınlaştır', exportBoardProject: '⇩ Microsoft Project’e aktar', projectSaved: 'Proje kaydedildi',
     redFlagCard: 'Kırmızı bayrak — kritik öncelik', checklistTitle: 'Kart kontrol listesi', checklistPlaceholder: 'Madde ekle', addItem: '＋ Ekle',
     newBoard: '＋ Yeni pano', archive: '⌁ Arşiv', settings: '⚙ Ayarlar', search: 'Ara', addCard: '＋ Kart',
     filterAll: 'Tümü', filterImportant: 'Önemli', filterDue: 'Tarihli', addColumn: '＋ Sütun ekle', language: 'Arayüz dili',
@@ -78,7 +81,7 @@ const state = {
   data: loadData(),
   filter: 'all',
   search: '',
-  settings: { theme: 'light', language: 'en', ...(JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')) },
+  settings: { theme: 'light', language: 'en', boardZoom: 1, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')) },
   textDialogAction: null,
   checklistDraft: []
 };
@@ -87,6 +90,7 @@ state.data.users ||= [];
 const $ = (selector) => document.querySelector(selector);
 const els = {
   boardList: $('#board-list'), kanban: $('#kanban'), boardTitle: $('#board-title'), boardStats: $('#board-stats'),
+  kanbanContent: $('#kanban-content'),
   cardDialog: $('#card-dialog'), cardForm: $('#card-form'), textDialog: $('#text-dialog'), textForm: $('#text-form'),
   settingsDialog: $('#settings-dialog'), archiveDialog: $('#archive-dialog'), archiveList: $('#archive-list'), userDialog: $('#user-dialog'), userForm: $('#user-form'), usersList: $('#users-list'), toast: $('#toast')
 };
@@ -98,13 +102,16 @@ function applyTranslations() {
   document.documentElement.lang = state.settings.language;
   document.querySelectorAll('[data-i18n]').forEach((element) => { element.textContent = t(element.dataset.i18n); });
   document.querySelectorAll('[data-i18n-placeholder]').forEach((element) => { element.placeholder = t(element.dataset.i18nPlaceholder); });
+  document.querySelectorAll('[data-i18n-title]').forEach((element) => { element.title = t(element.dataset.i18nTitle); element.setAttribute('aria-label', t(element.dataset.i18nTitle)); });
   document.querySelectorAll('[data-i18n-label]').forEach((element) => { if (element.firstChild?.nodeType === Node.TEXT_NODE) element.firstChild.nodeValue = t(element.dataset.i18nLabel); });
   $('#language-select').value = state.settings.language;
 }
 
 function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+  const json = JSON.stringify(state.data);
+  localStorage.setItem(STORAGE_KEY, json);
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
+  if (window.desktop) window.desktop.autoSaveData(json).catch(() => {});
 }
 
 function toast(message) {
@@ -112,6 +119,19 @@ function toast(message) {
   els.toast.classList.add('show');
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => els.toast.classList.remove('show'), 2200);
+}
+
+function applyBoardZoom() {
+  const zoom = Math.min(1.4, Math.max(0.6, Number(state.settings.boardZoom) || 1));
+  state.settings.boardZoom = Math.round(zoom * 10) / 10;
+  document.documentElement.style.setProperty('--board-zoom', state.settings.boardZoom);
+  $('#zoom-reset').textContent = `${Math.round(state.settings.boardZoom * 100)}%`;
+}
+
+function setBoardZoom(value) {
+  state.settings.boardZoom = value;
+  applyBoardZoom();
+  save();
 }
 
 function xmlEscape(value = '') {
@@ -149,7 +169,7 @@ function buildProjectXml(board) {
       const hasRedFlag = card.flagged || checklist.some((item) => item.flagged && !item.done);
       const cardPercent = percent === 100 ? 100 : (checklist.length ? Math.round((checklist.filter((item) => item.done).length / checklist.length) * 100) : 0);
       const cardTaskUid = uidValue++;
-      tasks.push(`<Task><UID>${cardTaskUid}</UID><ID>${idValue++}</ID><Name>${xmlEscape(card.title)}</Name><Type>1</Type><IsNull>0</IsNull><CreateDate>${projectDate(card.createdAt)}</CreateDate><Notes>${xmlEscape(notes)}</Notes><WBS>${columnIndex + 1}.${cardIndex + 1}</WBS><OutlineNumber>${columnIndex + 1}.${cardIndex + 1}</OutlineNumber><OutlineLevel>2</OutlineLevel><Priority>${hasRedFlag ? 1000 : (priorityMap[card.priority] || 500)}</Priority><Start>${start}</Start><Finish>${finish}</Finish><Duration>PT8H0M0S</Duration><DurationFormat>7</DurationFormat><Work>PT8H0M0S</Work><Summary>0</Summary><PercentComplete>${cardPercent}</PercentComplete><PercentWorkComplete>${cardPercent}</PercentWorkComplete></Task>`);
+      tasks.push(`<Task><UID>${cardTaskUid}</UID><ID>${idValue++}</ID><Name>${xmlEscape(card.title)}</Name><Type>1</Type><IsNull>0</IsNull><CreateDate>${projectDate(card.createdAt)}</CreateDate><WBS>${columnIndex + 1}.${cardIndex + 1}</WBS><OutlineNumber>${columnIndex + 1}.${cardIndex + 1}</OutlineNumber><OutlineLevel>2</OutlineLevel><Priority>${hasRedFlag ? 1000 : (priorityMap[card.priority] || 500)}</Priority><Start>${start}</Start><Finish>${finish}</Finish><Duration>PT8H0M0S</Duration><DurationFormat>7</DurationFormat><Work>PT8H0M0S</Work><Summary>0</Summary><PercentComplete>${cardPercent}</PercentComplete><PercentWorkComplete>${cardPercent}</PercentWorkComplete><Notes>${xmlEscape(notes)}</Notes></Task>`);
       if (resourceUids.has(card.assigneeId)) assignments.push({ taskUid: cardTaskUid, resourceUid: resourceUids.get(card.assigneeId), percent: cardPercent });
     });
   });
@@ -158,13 +178,16 @@ function buildProjectXml(board) {
     return `<Resource><UID>${index + 1}</UID><ID>${index + 1}</ID><Name>${xmlEscape(user.name)}</Name><Type>1</Type><IsNull>0</IsNull><Initials>${xmlEscape(initials)}</Initials><EmailAddress>${xmlEscape(user.email)}</EmailAddress><MaxUnits>1</MaxUnits></Resource>`;
   }).join('');
   const assignmentsXml = assignments.map((assignment, index) => `<Assignment><UID>${index + 1}</UID><TaskUID>${assignment.taskUid}</TaskUID><ResourceUID>${assignment.resourceUid}</ResourceUID><PercentWorkComplete>${assignment.percent}</PercentWorkComplete><Units>1</Units><Work>PT8H0M0S</Work></Assignment>`).join('');
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<Project xmlns="http://schemas.microsoft.com/project"><SaveVersion>12</SaveVersion><Name>${xmlEscape(board.title)}.xml</Name><Title>${xmlEscape(board.title)}</Title><ScheduleFromStart>1</ScheduleFromStart><StartDate>${today}</StartDate><MinutesPerDay>480</MinutesPerDay><MinutesPerWeek>2400</MinutesPerWeek><DaysPerMonth>20</DaysPerMonth><DefaultStartTime>09:00:00</DefaultStartTime><DefaultFinishTime>17:00:00</DefaultFinishTime><Tasks>${tasks.join('')}</Tasks><Resources>${resourcesXml}</Resources><Assignments>${assignmentsXml}</Assignments></Project>`;
+  const resourcesSection = resourcesXml ? `<Resources>${resourcesXml}</Resources>` : '';
+  const assignmentsSection = assignmentsXml ? `<Assignments>${assignmentsXml}</Assignments>` : '';
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<Project xmlns="http://schemas.microsoft.com/project"><SaveVersion>12</SaveVersion><Name>${xmlEscape(board.title)}.xml</Name><Title>${xmlEscape(board.title)}</Title><Company>Technochip</Company><Author>Grigory Bzhitov</Author><ScheduleFromStart>1</ScheduleFromStart><StartDate>${today}</StartDate><DefaultStartTime>09:00:00</DefaultStartTime><DefaultFinishTime>17:00:00</DefaultFinishTime><MinutesPerDay>480</MinutesPerDay><MinutesPerWeek>2400</MinutesPerWeek><DaysPerMonth>20</DaysPerMonth><Tasks>${tasks.join('')}</Tasks>${resourcesSection}${assignmentsSection}</Project>`;
 }
 
 function render() {
   if (!state.data.boards.some((board) => board.id === state.data.activeBoardId)) state.data.activeBoardId = state.data.boards[0]?.id;
   document.body.classList.toggle('dark', state.settings.theme === 'dark');
   applyTranslations();
+  applyBoardZoom();
   renderBoards();
   renderKanban();
   renderUsers();
@@ -191,7 +214,8 @@ function filteredCards(board, columnId) {
   const query = state.search.trim().toLocaleLowerCase('ru');
   return board.cards.filter((card) => {
     if (card.archived || card.columnId !== columnId) return false;
-    if (state.filter === 'high' && card.priority !== 'high') return false;
+    const hasActiveFlag = card.flagged || (card.checklist || []).some((item) => item.flagged && !item.done);
+    if (state.filter === 'high' && card.priority !== 'high' && !hasActiveFlag) return false;
     if (state.filter === 'due' && !card.due) return false;
     if (query && !`${card.title} ${card.description}`.toLocaleLowerCase('ru').includes(query)) return false;
     return true;
@@ -206,7 +230,7 @@ function renderKanban() {
   const doneColumn = board.columns.at(-1);
   const doneCount = board.cards.filter((card) => !card.archived && card.columnId === doneColumn?.id).length;
   els.boardStats.textContent = `${activeCount} ${t('cards')} · ${doneCount} ${t('completed')}`;
-  els.kanban.innerHTML = board.columns.map((column) => {
+  els.kanbanContent.innerHTML = board.columns.map((column) => {
     const cards = filteredCards(board, column.id);
     return `<section class="column" data-column-id="${column.id}">
       <header class="column-header">
@@ -318,7 +342,11 @@ $('#new-board').addEventListener('click', () => openTextDialog({ title: t('newBo
   state.data.boards.push(board); state.data.activeBoardId = board.id; render();
 } }));
 
-$('#add-column').addEventListener('click', () => openTextDialog({ title: t('newColumnTitle'), label: t('columnName'), action: (title) => { activeBoard().columns.push({ id: uid(), title }); render(); } }));
+$('#add-column').addEventListener('click', () => openTextDialog({ title: t('newColumnTitle'), label: t('columnName'), action: (title) => {
+  activeBoard().columns.push({ id: uid(), title });
+  render();
+  setTimeout(() => { els.kanban.scrollLeft = els.kanban.scrollWidth; }, 0);
+} }));
 $('#add-card').addEventListener('click', () => openCardDialog());
 
 els.cardDialog.addEventListener('click', (event) => {
@@ -409,6 +437,28 @@ document.querySelectorAll('.filter-chip').forEach((button) => button.addEventLis
   state.filter = button.dataset.filter; renderKanban();
 }));
 
+$('#zoom-out').addEventListener('click', () => setBoardZoom(state.settings.boardZoom - 0.1));
+$('#zoom-reset').addEventListener('click', () => setBoardZoom(1));
+$('#zoom-in').addEventListener('click', () => setBoardZoom(state.settings.boardZoom + 0.1));
+
+els.kanban.addEventListener('wheel', (event) => {
+  if (event.ctrlKey || event.metaKey) {
+    event.preventDefault();
+    setBoardZoom(state.settings.boardZoom + (event.deltaY < 0 ? 0.1 : -0.1));
+    return;
+  }
+
+  const cardList = event.target.closest('.card-list');
+  const canScrollDown = cardList && event.deltaY > 0 && cardList.scrollTop + cardList.clientHeight < cardList.scrollHeight;
+  const canScrollUp = cardList && event.deltaY < 0 && cardList.scrollTop > 0;
+  if (!event.shiftKey && (canScrollDown || canScrollUp)) return;
+
+  const delta = event.deltaX || event.deltaY;
+  if (!delta) return;
+  event.preventDefault();
+  els.kanban.scrollLeft += delta;
+}, { passive: false });
+
 $('#theme-toggle').addEventListener('click', () => { state.settings.theme = state.settings.theme === 'dark' ? 'light' : 'dark'; render(); });
 $('#toggle-sidebar').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
 
@@ -454,11 +504,19 @@ els.usersList.addEventListener('click', (event) => {
   render();
 });
 
-$('#export-data').addEventListener('click', async () => {
+async function saveProject(saveAs = false) {
+  if (!window.desktop) return;
+  const json = JSON.stringify(state.data, null, 2);
+  const result = saveAs ? await window.desktop.saveDataAs(json) : await window.desktop.saveData(json);
+  if (result?.ok) toast(t('projectSaved'));
+}
+
+async function exportBackup() {
   const ok = window.desktop ? await window.desktop.exportData(JSON.stringify(state.data, null, 2)) : false;
   if (ok) toast(t('backupSaved'));
-});
-$('#import-data').addEventListener('click', async () => {
+}
+
+async function importProject() {
   if (!window.desktop) return;
   try {
     const raw = await window.desktop.importData();
@@ -467,14 +525,20 @@ $('#import-data').addEventListener('click', async () => {
     if (!Array.isArray(data.boards) || !data.boards.length) throw new Error('invalid');
     state.data = data; els.settingsDialog.close(); render(); toast(t('imported'));
   } catch (_) { toast(t('importFailed')); }
-});
+}
 
-$('#export-project').addEventListener('click', async () => {
+$('#export-data').addEventListener('click', exportBackup);
+$('#import-data').addEventListener('click', importProject);
+
+async function exportActiveBoardToProject() {
   if (!window.desktop) return toast(t('desktopOnly'));
   const board = activeBoard();
   const ok = await window.desktop.exportProject(buildProjectXml(board), board.title);
   if (ok) toast(t('projectExported'));
-});
+}
+
+$('#export-project').addEventListener('click', exportActiveBoardToProject);
+$('#export-project-board').addEventListener('click', exportActiveBoardToProject);
 
 $('#show-archive').addEventListener('click', () => { renderArchive(); els.archiveDialog.showModal(); });
 $('#close-archive').addEventListener('click', () => els.archiveDialog.close());
@@ -489,10 +553,37 @@ $('#language-select').addEventListener('change', (event) => { state.settings.lan
 
 window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'n') { event.preventDefault(); openCardDialog(); }
+  if ((event.ctrlKey || event.metaKey) && ['+', '=', '-', '0'].includes(event.key)) {
+    event.preventDefault();
+    if (event.key === '0') setBoardZoom(1);
+    else setBoardZoom(state.settings.boardZoom + (event.key === '-' ? -0.1 : 0.1));
+  }
   if (event.key === 'Escape') $('#sidebar').classList.remove('open');
 });
 
+function handleMenuCommand(command) {
+  if (command === 'save') saveProject(false);
+  if (command === 'save-as') saveProject(true);
+  if (command === 'import') importProject();
+  if (command === 'export') exportBackup();
+  if (command === 'export-project') exportActiveBoardToProject();
+  if (command === 'zoom-in') setBoardZoom(state.settings.boardZoom + 0.1);
+  if (command === 'zoom-out') setBoardZoom(state.settings.boardZoom - 0.1);
+  if (command === 'zoom-reset') setBoardZoom(1);
+}
+
 (async function init() {
+  if (window.desktop) {
+    try {
+      const raw = await window.desktop.loadAutoData();
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (Array.isArray(data.boards) && data.boards.length) state.data = data;
+      }
+    } catch (_) { /* fall back to local storage */ }
+    state.data.users ||= [];
+    window.desktop.onMenuCommand(handleMenuCommand);
+  }
   render();
   if (window.desktop) $('#pin-toggle').classList.toggle('active', await window.desktop.getAlwaysOnTop());
 })();

@@ -21,6 +21,24 @@ async function run() {
     assert(document.querySelector('#new-board').textContent.includes('New board'), 'English translation failed');
     assert(document.querySelector('[data-i18n-label="columnLabel"]').firstChild.nodeValue === 'Task status', 'English form translation failed');
 
+    const boardScroller = document.querySelector('#kanban');
+    assert(getComputedStyle(boardScroller).overflowX === 'scroll', 'Horizontal board scrollbar is not permanently available');
+    assert(boardScroller.scrollWidth > boardScroller.clientWidth, 'Board columns do not create a horizontally scrollable workspace');
+    boardScroller.scrollLeft = 0;
+    boardScroller.dispatchEvent(new WheelEvent('wheel', { deltaY: 160, bubbles: true, cancelable: true })); await wait();
+    assert(boardScroller.scrollLeft > 0, 'Mouse wheel did not scroll the board horizontally');
+    document.querySelector('#zoom-out').click(); await wait();
+    assert(state.settings.boardZoom === 0.9 && document.querySelector('#zoom-reset').textContent === '90%', 'Board zoom out failed');
+    document.querySelector('#zoom-reset').click(); await wait();
+    assert(state.settings.boardZoom === 1 && document.querySelector('#zoom-reset').textContent === '100%', 'Board zoom reset failed');
+    boardScroller.scrollLeft = 0;
+    document.querySelector('#add-column').click();
+    document.querySelector('#text-dialog-input').value = 'Temporary scroll test';
+    document.querySelector('#text-form').requestSubmit(); await wait(400);
+    assert(document.querySelectorAll('.column').length === 4, 'Add column failed');
+    assert(boardScroller.scrollLeft > 0, 'The board did not reveal the newly added rightmost column');
+    activeBoard().columns.pop(); render(); await wait();
+
     const cardsBeforeCancel = document.querySelectorAll('.card').length;
     document.querySelector('#add-card').click(); await wait();
     assert(document.querySelector('#card-dialog').open, 'New card dialog did not open');
@@ -62,6 +80,14 @@ async function run() {
     assert(customCard.classList.contains('is-flagged') && customCard.textContent.includes('1'), 'Red flag or checklist summary failed');
 
     const sourceId = customCard.dataset.cardId;
+    const normalCard = activeBoard().cards.find((card) => card.priority === 'normal');
+    normalCard.checklist = [{ id: crypto.randomUUID(), text: 'Flagged normal-priority item', done: false, flagged: true }];
+    render();
+    document.querySelector('[data-filter="high"]').click(); await wait();
+    assert([...document.querySelectorAll('.card')].some((card) => card.textContent.includes('Keep the board above other windows')), 'Important filter omitted a normal-priority card with an active red-flag checklist item');
+    assert(document.querySelectorAll('.card').length === 3, 'Important filter did not return all priority and red-flag cards');
+    document.querySelector('[data-filter="all"]').click(); await wait();
+
     const target = document.querySelectorAll('.column')[1];
     const transfer = new DataTransfer(); transfer.setData('text/plain', sourceId);
     target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer })); await wait();
@@ -80,9 +106,19 @@ async function run() {
     assert(parsed.getElementsByTagNameNS('*', 'Task').length === 6, 'Project XML task hierarchy is incomplete');
     assert(parsed.getElementsByTagNameNS('*', 'Resource').length === 1, 'Project resource export failed');
     assert(parsed.getElementsByTagNameNS('*', 'Assignment').length === 1, 'Project assignment export failed');
+    assert(parsed.getElementsByTagNameNS('*', 'Summary').length === 6 && [...parsed.getElementsByTagNameNS('*', 'Summary')].filter((item) => item.textContent === '1').length === 3, 'Project summary-task hierarchy is incomplete');
+    assert([...parsed.getElementsByTagNameNS('*', 'OutlineLevel')].map((item) => item.textContent).join(',') === '1,2,1,2,2,1', 'Project outline hierarchy would not display as status groups and card subtasks');
     assert(xml.includes('alex@example.com'), 'Project resource email export failed');
+    const taskUids = new Set([...parsed.getElementsByTagNameNS('*', 'Task')].map((task) => task.getElementsByTagNameNS('*', 'UID')[0].textContent));
+    const resourceUids = new Set([...parsed.getElementsByTagNameNS('*', 'Resource')].map((resource) => resource.getElementsByTagNameNS('*', 'UID')[0].textContent));
+    assert([...parsed.getElementsByTagNameNS('*', 'Assignment')].every((assignment) => taskUids.has(assignment.getElementsByTagNameNS('*', 'TaskUID')[0].textContent) && resourceUids.has(assignment.getElementsByTagNameNS('*', 'ResourceUID')[0].textContent)), 'Project assignments reference missing tasks or resources');
     assert(xml.includes('<Priority>1000</Priority>') && xml.includes('Критический пункт'), 'Red flag checklist Project export failed');
     assert(xml.includes('&amp;') && xml.includes('&lt;XML&gt;'), 'Project XML text escaping failed');
+    assert(xml.indexOf('<DefaultStartTime>') < xml.indexOf('<MinutesPerDay>'), 'Project-level elements are not in Microsoft schema order');
+    assert(xml.indexOf('<PercentWorkComplete>') < xml.indexOf('<Notes>'), 'Task notes are not in Microsoft schema order');
+    const unassignedBoard = { ...activeBoard(), cards: activeBoard().cards.map((card) => ({ ...card, assigneeId: null })) };
+    const unassignedXml = buildProjectXml(unassignedBoard);
+    assert(!unassignedXml.includes('<Resources>') && !unassignedXml.includes('<Assignments>'), 'Empty Project resource or assignment collections must be omitted');
 
     const beforeReload = JSON.parse(localStorage.getItem('kanban-stickers-data-v1'));
     assert(beforeReload.boards[0].cards.length === 3, 'Local persistence failed');
