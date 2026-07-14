@@ -1,0 +1,101 @@
+name: Build, sign and release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows-release:
+    runs-on: windows-2022
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check source
+        run: npm run check
+
+      - name: Run UI smoke tests
+        run: npm test
+
+      - name: Build and sign Windows installer
+        shell: pwsh
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: npx electron-builder --win nsis --publish never --config.win.forceCodeSigning=true
+
+      - name: Create portable archive
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          Compress-Archive -Path "dist\win-unpacked\*" -DestinationPath "dist\Kanban-Stickers-Portable-$version-x64.zip" -CompressionLevel Optimal -Force
+
+      - name: Verify digital signatures
+        shell: pwsh
+        run: |
+          $targets = @(
+            "dist\win-unpacked\Kanban Stickers.exe"
+          ) + @(Get-ChildItem "dist\Kanban-Stickers-Setup-*.exe" | ForEach-Object FullName)
+          foreach ($target in $targets) {
+            $signature = Get-AuthenticodeSignature -FilePath $target
+            Write-Host "$target : $($signature.Status) : $($signature.SignerCertificate.Subject)"
+            if ($signature.Status -ne "Valid") {
+              throw "Invalid or missing Authenticode signature: $target"
+            }
+          }
+
+      - name: Create SHA-256 checksums
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem dist -File | Where-Object { $_.Extension -in ".exe", ".zip" }
+          $lines = foreach ($file in $files) {
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLowerInvariant()
+            "$hash *$($file.Name)"
+          }
+          $lines | Set-Content -Encoding ascii "dist\SHA256SUMS.txt"
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kanban-stickers-windows-${{ github.ref_name }}
+          path: |
+            dist/Kanban-Stickers-Setup-*.exe
+            dist/Kanban-Stickers-Portable-*.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title "Kanban Stickers $tag" --generate-notes
+          }
+          $assets = @(
+            Get-ChildItem "dist\Kanban-Stickers-Setup-*.exe"
+            Get-ChildItem "dist\Kanban-Stickers-Portable-*.zip"
+            Get-Item "dist\SHA256SUMS.txt"
+          )
+          foreach ($asset in $assets) {
+            gh release upload $tag $asset.FullName --clobber
+          }

@@ -1,0 +1,49 @@
+{
+  "name": "kanban-stickers",
+  "version": "0.1.0",
+  "description": "A lightweight desktop Kanban board for Windows",
+  "main": "electron/main.js",
+  "author": "Technochip — owned by Grigory Bzhitov",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check electron/main.js && node --check electron/preload.js && node --check src/app.js",
+    "test": "electron tests/smoke.js",
+    "dist": "electron-builder --win nsis portable"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.kanbanstickers.app",
+    "productName": "Kanban Stickers",
+    "copyright": "Copyright © 2026 Technochip — owned by Grigory Bzhitov",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "artifactName": "Kanban-Stickers-Setup-${version}-${arch}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "portable": {
+      "artifactName": "Kanban-Stickers-Portable-${version}-${arch}.${ext}"
+    }
+  }
+}

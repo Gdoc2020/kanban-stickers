@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Kanban Stickers</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><span class="brand-mark">K</span><span>Kanban Stickers</span></div>
+      <button class="new-board" id="new-board" data-i18n="newBoard">＋ New board</button>
+      <nav class="board-list" id="board-list" aria-label="Доски"></nav>
+      <div class="sidebar-footer">
+        <button class="nav-action" id="show-archive" data-i18n="archive">⌁ Archive</button>
+        <button class="nav-action" id="open-settings" data-i18n="settings">⚙ Settings</button>
+        <p class="credits">Made and developed by<br><strong>Technochip</strong><br><small>owned by Grigory Bzhitov</small></p>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <button class="icon-button mobile-only" id="toggle-sidebar" aria-label="Показать доски">☰</button>
+        <div class="board-heading">
+          <input id="board-title" class="board-title" maxlength="60" aria-label="Название доски">
+          <span id="board-stats" class="board-stats"></span>
+        </div>
+        <div class="top-actions">
+          <label class="search-box"><span>⌕</span><input id="search" placeholder="Search" data-i18n-placeholder="search"></label>
+          <button class="icon-button" id="theme-toggle" title="Сменить тему">◐</button>
+          <button class="icon-button" id="pin-toggle" title="Поверх окон">⌖</button>
+          <button class="primary-button" id="add-card" data-i18n="addCard">＋ Card</button>
+        </div>
+      </header>
+
+      <section class="filterbar">
+        <button class="filter-chip active" data-filter="all" data-i18n="filterAll">Все</button>
+        <button class="filter-chip" data-filter="high" data-i18n="filterImportant">Важные</button>
+        <button class="filter-chip" data-filter="due" data-i18n="filterDue">Со сроком</button>
+        <span class="filter-spacer"></span>
+        <button class="quiet-button" id="add-column" data-i18n="addColumn">＋ Добавить колонку</button>
+      </section>
+
+      <section class="kanban" id="kanban" aria-label="Kanban доска"></section>
+    </main>
+  </div>
+
+  <dialog id="card-dialog" class="modal">
+    <form method="dialog" id="card-form">
+      <div class="modal-header"><h2 id="card-dialog-title">Новая карточка</h2><button value="cancel" class="close-button">×</button></div>
+      <input type="hidden" id="card-id">
+      <label data-i18n-label="titleLabel">Название<input id="card-title" maxlength="120" required placeholder="Что нужно сделать?" data-i18n-placeholder="cardTitlePlaceholder"></label>
+      <label data-i18n-label="descriptionLabel">Описание<textarea id="card-description" rows="4" maxlength="1000" placeholder="Заметки и детали" data-i18n-placeholder="descriptionPlaceholder"></textarea></label>
+      <div class="form-grid">
+        <label data-i18n-label="columnLabel">Статус задачи<select id="card-column"></select></label>
+        <label data-i18n-label="priorityLabel">Приоритет<select id="card-priority"><option value="normal" data-i18n="priorityNormal">Обычный</option><option value="high" data-i18n="priorityHigh">Важный</option><option value="low" data-i18n="priorityLow">Низкий</option></select></label>
+        <label data-i18n-label="dueLabel">Срок<input id="card-due" type="date"></label>
+        <label data-i18n-label="colorLabel">Цвет карточки<input id="card-color" type="color" value="#fff1a8"></label>
+        <label data-i18n-label="assigneeLabel">Исполнитель<select id="card-assignee"></select></label>
+      </div>
+      <label class="flag-toggle"><input id="card-flagged" type="checkbox"><span>🚩</span><strong data-i18n="redFlagCard">Красный флаг — критический приоритет</strong></label>
+      <section class="checklist-editor">
+        <div class="checklist-heading"><strong data-i18n="checklistTitle">Пункты карточки</strong><span id="checklist-progress"></span></div>
+        <div id="checklist-items" class="checklist-items"></div>
+        <div class="checklist-add"><input id="checklist-new" maxlength="180" data-i18n-placeholder="checklistPlaceholder" placeholder="Добавить пункт"><button type="button" id="checklist-add" class="secondary-button" data-i18n="addItem">＋ Добавить</button></div>
+      </section>
+      <div class="modal-actions"><button value="cancel" class="secondary-button" data-i18n="cancel">Отмена</button><button type="submit" value="default" class="primary-button" data-i18n="save">Сохранить</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="text-dialog" class="modal small-modal">
+    <form method="dialog" id="text-form">
+      <div class="modal-header"><h2 id="text-dialog-title">Название</h2><button value="cancel" class="close-button">×</button></div>
+      <label id="text-dialog-label">Название<input id="text-dialog-input" maxlength="60" required></label>
+      <div class="modal-actions"><button value="cancel" class="secondary-button" data-i18n="cancel">Отмена</button><button type="submit" value="default" class="primary-button" data-i18n="create">Создать</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="settings-dialog" class="modal small-modal">
+    <form method="dialog">
+      <div class="modal-header"><h2 data-i18n="settingsTitle">Настройки</h2><button value="cancel" class="close-button">×</button></div>
+      <label class="language-row"><span data-i18n="language">Язык интерфейса</span><select id="language-select"><option value="ru">Русский</option><option value="en">English</option><option value="tr">Türkçe</option></select></label>
+      <label class="toggle-row"><span><strong data-i18n="startWithWindows">Запускать вместе с Windows</strong><small data-i18n="trayHint">Приложение будет доступно в системном трее</small></span><input type="checkbox" id="startup-toggle"></label>
+      <section class="users-section">
+        <div class="users-heading"><strong data-i18n="usersTitle">Пользователи</strong><button type="button" class="quiet-button" id="add-user" data-i18n="addUser">＋ Добавить</button></div>
+        <div id="users-list" class="users-list"></div>
+      </section>
+      <div class="settings-actions">
+        <button type="button" class="secondary-button" id="export-data" data-i18n="exportData">Экспорт данных</button>
+        <button type="button" class="secondary-button" id="import-data" data-i18n="importData">Импорт данных</button>
+        <button type="button" class="secondary-button" id="export-project" data-i18n="exportProject">Microsoft Project XML</button>
+      </div>
+      <p class="settings-note" data-i18n="localOnly">Все карточки автоматически сохраняются только на этом компьютере.</p>
+    </form>
+  </dialog>
+
+  <dialog id="user-dialog" class="modal small-modal">
+    <form method="dialog" id="user-form">
+      <div class="modal-header"><h2 data-i18n="newUser">Новый пользователь</h2><button value="cancel" class="close-button">×</button></div>
+      <label data-i18n-label="userName">Имя пользователя<input id="user-name" maxlength="80" required></label>
+      <label data-i18n-label="emailLabel">Email<input id="user-email" type="email" maxlength="160" required placeholder="name@example.com"></label>
+      <label data-i18n-label="userColor">Цвет пользователя<input id="user-color" type="color" value="#6c5ce7"></label>
+      <div class="modal-actions"><button value="cancel" class="secondary-button" data-i18n="cancel">Отмена</button><button type="submit" value="default" class="primary-button" data-i18n="create">Создать</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="archive-dialog" class="modal archive-modal">
+    <div class="modal-header"><h2 data-i18n="archiveTitle">Архив карточек</h2><button class="close-button" id="close-archive">×</button></div>
+    <div id="archive-list" class="archive-list"></div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
