@@ -448,15 +448,10 @@ els.kanban.addEventListener('wheel', (event) => {
     return;
   }
 
-  const cardList = event.target.closest('.card-list');
-  const canScrollDown = cardList && event.deltaY > 0 && cardList.scrollTop + cardList.clientHeight < cardList.scrollHeight;
-  const canScrollUp = cardList && event.deltaY < 0 && cardList.scrollTop > 0;
-  if (!event.shiftKey && (canScrollDown || canScrollUp)) return;
-
-  const delta = event.deltaX || event.deltaY;
-  if (!delta) return;
-  event.preventDefault();
-  els.kanban.scrollLeft += delta;
+  if (event.shiftKey && !event.deltaX && event.deltaY) {
+    event.preventDefault();
+    els.kanban.scrollLeft += event.deltaY;
+  }
 }, { passive: false });
 
 $('#theme-toggle').addEventListener('click', () => { state.settings.theme = state.settings.theme === 'dark' ? 'light' : 'dark'; render(); });

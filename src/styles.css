@@ -38,7 +38,7 @@ body { font: 14px/1.45 "Segoe UI", system-ui, sans-serif; color: var(--text); ba
 button, input, textarea, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 
-.app-shell { display: grid; grid-template-columns: 240px 1fr; height: 100vh; }
+.app-shell { display: grid; grid-template-columns: 240px 1fr; height: 100%; }
 .sidebar { display: flex; flex-direction: column; min-width: 0; padding: 18px 14px; background: var(--surface); border-right: 1px solid var(--border); }
 .brand { display: flex; align-items: center; gap: 10px; margin: 0 7px 22px; font-weight: 750; font-size: 16px; }
 .brand-mark { display: grid; place-items: center; width: 30px; height: 30px; color: white; background: var(--accent); border-radius: 9px; box-shadow: 0 5px 14px rgba(108,92,231,.3); }
@@ -57,7 +57,7 @@ button { cursor: pointer; }
 .credits { margin: 13px 9px 0; color: var(--muted); font-size: 10px; line-height: 1.35; }
 .credits strong { color: var(--text); font-size: 11px; }
 
-.workspace { min-width: 0; display: flex; flex-direction: column; }
+.workspace { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .topbar { display: flex; align-items: center; gap: 14px; min-height: 76px; padding: 13px 22px; background: var(--surface); border-bottom: 1px solid var(--border); }
 .board-heading { min-width: 180px; flex: 1; }
 .board-title { display: block; width: min(100%, 480px); padding: 0; border: 0; outline: 0; background: transparent; font-size: 21px; font-weight: 750; }
@@ -79,20 +79,20 @@ button { cursor: pointer; }
 .zoom-level { min-width: 52px; border-inline: 1px solid var(--border); font-size: 11px; font-weight: 700; }
 .zoom-button:hover, .zoom-level:hover { color: var(--accent); background: var(--accent-soft); }
 
-.kanban { flex: 1; min-height: 0; overflow-x: scroll; overflow-y: hidden; scrollbar-gutter: stable; scrollbar-color: var(--accent) var(--surface-2); scrollbar-width: auto; overscroll-behavior: contain; }
+.kanban { flex: 1; min-height: 0; overflow: scroll; scrollbar-gutter: stable; scrollbar-color: var(--accent) var(--surface-2); scrollbar-width: auto; overscroll-behavior: contain; }
 .kanban::-webkit-scrollbar { width: 14px; height: 14px; }
 .kanban::-webkit-scrollbar-track { background: var(--surface-2); border-radius: 999px; }
 .kanban::-webkit-scrollbar-thumb { min-width: 52px; background: color-mix(in srgb, var(--accent) 72%, var(--muted)); border: 3px solid var(--surface-2); border-radius: 999px; }
 .kanban::-webkit-scrollbar-thumb:hover { background: var(--accent); }
-.kanban-content { display: flex; align-items: flex-start; gap: 14px; width: max-content; min-width: 100%; min-height: 100%; padding: 14px 22px 20px; zoom: var(--board-zoom, 1); transform-origin: top left; }
-.column { display: flex; flex-direction: column; flex: 0 0 300px; max-height: 100%; background: color-mix(in srgb, var(--surface) 75%, transparent); border: 1px solid var(--border); border-radius: 13px; }
+.kanban-content { display: flex; align-items: flex-start; gap: 14px; width: max-content; min-width: 100%; height: max-content; min-height: 100%; padding: 14px 22px 20px; zoom: var(--board-zoom, 1); transform-origin: top left; }
+.column { display: flex; flex-direction: column; flex: 0 0 300px; background: color-mix(in srgb, var(--surface) 75%, transparent); border: 1px solid var(--border); border-radius: 13px; }
 .column.drag-over { outline: 2px dashed var(--accent); outline-offset: 2px; }
 .column-header { display: flex; align-items: center; gap: 8px; padding: 13px 13px 10px; }
 .column-name { flex: 1; padding: 3px 5px; border: 0; outline: 0; background: transparent; font-weight: 700; }
 .column-count { color: var(--muted); font-size: 12px; }
 .column-menu { border: 0; color: var(--muted); background: transparent; border-radius: 6px; }
 .column-menu:hover { color: var(--text); background: var(--surface-2); }
-.card-list { min-height: 80px; padding: 0 10px 10px; overflow-y: auto; }
+.card-list { min-height: 80px; padding: 0 10px 10px; overflow: visible; }
 .empty-column { padding: 24px 8px; text-align: center; color: var(--muted); border: 1px dashed var(--border); border-radius: 10px; }
 .card { position: relative; padding: 13px; margin: 0 0 9px; border: 1px solid rgba(80,70,50,.10); border-radius: 10px; background: var(--card-color, var(--yellow)); box-shadow: 0 5px 12px rgba(47,40,31,.07); cursor: grab; transition: transform .12s ease, box-shadow .12s ease; }
 .card:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
