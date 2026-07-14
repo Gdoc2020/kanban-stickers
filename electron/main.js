@@ -5,7 +5,6 @@ const { readProjectFile, writeProjectFile } = require('./storage');
 
 let mainWindow;
 let tray;
-let isQuitting = false;
 let currentDocumentPath = null;
 let latestProjectJson = null;
 
@@ -27,7 +26,7 @@ function createApplicationMenu() {
         { label: 'Export backup…', click: () => sendMenuCommand('export') },
         { label: 'Export board to Microsoft Project…', click: () => sendMenuCommand('export-project') },
         { type: 'separator' },
-        { label: 'Exit', accelerator: 'Alt+F4', click: () => { isQuitting = true; app.quit(); } }
+        { label: 'Exit', accelerator: 'Alt+F4', click: () => app.quit() }
       ]
     },
     {
@@ -77,20 +76,17 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, '..', 'src', 'index.html'));
   Menu.setApplicationMenu(createApplicationMenu());
   mainWindow.once('ready-to-show', () => mainWindow.show());
-  mainWindow.on('close', (event) => {
+  mainWindow.on('close', () => {
     if (latestProjectJson) writeProjectFile(autosavePath(), latestProjectJson);
-    if (!isQuitting) {
-      event.preventDefault();
-      mainWindow.hide();
-    }
   });
+  mainWindow.on('closed', () => { mainWindow = null; tray?.destroy(); tray = null; });
 
   tray = new Tray(createTrayIcon());
   tray.setToolTip('Kanban Stickers');
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Открыть Kanban Stickers', click: () => mainWindow.show() },
     { type: 'separator' },
-    { label: 'Выход', click: () => { isQuitting = true; app.quit(); } }
+    { label: 'Выход', click: () => app.quit() }
   ]));
   tray.on('double-click', () => mainWindow.show());
 }
@@ -180,11 +176,10 @@ app.whenReady().then(() => {
   });
 
   createWindow();
-  app.on('activate', () => mainWindow?.show());
+  app.on('activate', () => { if (mainWindow) mainWindow.show(); else createWindow(); });
 });
 
 app.on('before-quit', () => {
-  isQuitting = true;
   if (latestProjectJson) writeProjectFile(autosavePath(), latestProjectJson);
 });
-app.on('window-all-closed', (event) => event.preventDefault());
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

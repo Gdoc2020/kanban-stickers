@@ -3,7 +3,7 @@ const SETTINGS_KEY = 'kanban-stickers-settings-v1';
 
 const I18N = {
   ru: {
-    zoomOut: 'Уменьшить масштаб', zoomReset: 'Сбросить масштаб', zoomIn: 'Увеличить масштаб', exportBoardProject: '⇩ В Microsoft Project', projectSaved: 'Проект сохранён',
+    zoomOut: 'Уменьшить масштаб', zoomReset: 'Сбросить масштаб', zoomIn: 'Увеличить масштаб', exportBoardProject: '⇩ В Microsoft Project', projectSaved: 'Проект сохранён', progressLabel: 'Выполнение (%)',
     redFlagCard: 'Красный флаг — критический приоритет', checklistTitle: 'Пункты карточки', checklistPlaceholder: 'Добавить пункт', addItem: '＋ Добавить',
     newBoard: '＋ Новая доска', archive: '⌁ Архив', settings: '⚙ Настройки', search: 'Поиск', addCard: '＋ Карточка',
     filterAll: 'Все', filterImportant: 'Важные', filterDue: 'Со сроком', addColumn: '＋ Добавить колонку', language: 'Язык интерфейса',
@@ -16,7 +16,7 @@ const I18N = {
     archiveEmpty: 'Архив пока пуст', restore: 'Восстановить', deleteForever: 'Удалить навсегда?', todo: 'Запланировано', doing: 'В работе', done: 'Готово'
   },
   en: {
-    zoomOut: 'Zoom out', zoomReset: 'Reset zoom', zoomIn: 'Zoom in', exportBoardProject: '⇩ Export to Microsoft Project', projectSaved: 'Project saved',
+    zoomOut: 'Zoom out', zoomReset: 'Reset zoom', zoomIn: 'Zoom in', exportBoardProject: '⇩ Export to Microsoft Project', projectSaved: 'Project saved', progressLabel: 'Completion (%)',
     redFlagCard: 'Red flag — critical priority', checklistTitle: 'Card checklist', checklistPlaceholder: 'Add an item', addItem: '＋ Add',
     newBoard: '＋ New board', archive: '⌁ Archive', settings: '⚙ Settings', search: 'Search', addCard: '＋ Card',
     filterAll: 'All', filterImportant: 'Important', filterDue: 'With due date', addColumn: '＋ Add column', language: 'Interface language',
@@ -28,7 +28,7 @@ const I18N = {
     importFailed: 'Could not read the backup file', projectExported: 'Microsoft Project file saved', archiveEmpty: 'The archive is empty', restore: 'Restore', deleteForever: 'Delete this card permanently?', todo: 'Planned', doing: 'In progress', done: 'Done'
   },
   tr: {
-    zoomOut: 'Uzaklaştır', zoomReset: 'Yakınlaştırmayı sıfırla', zoomIn: 'Yakınlaştır', exportBoardProject: '⇩ Microsoft Project’e aktar', projectSaved: 'Proje kaydedildi',
+    zoomOut: 'Uzaklaştır', zoomReset: 'Yakınlaştırmayı sıfırla', zoomIn: 'Yakınlaştır', exportBoardProject: '⇩ Microsoft Project’e aktar', projectSaved: 'Proje kaydedildi', progressLabel: 'Tamamlanma (%)',
     redFlagCard: 'Kırmızı bayrak — kritik öncelik', checklistTitle: 'Kart kontrol listesi', checklistPlaceholder: 'Madde ekle', addItem: '＋ Ekle',
     newBoard: '＋ Yeni pano', archive: '⌁ Arşiv', settings: '⚙ Ayarlar', search: 'Ara', addCard: '＋ Kart',
     filterAll: 'Tümü', filterImportant: 'Önemli', filterDue: 'Tarihli', addColumn: '＋ Sütun ekle', language: 'Arayüz dili',
@@ -144,6 +144,15 @@ function projectDate(value, hour = '09:00:00') {
   return `${date.toISOString().slice(0, 10)}T${hour}`;
 }
 
+function getCardProgress(card, board = activeBoard()) {
+  if (card?.progress !== undefined && card?.progress !== null && card?.progress !== '') {
+    return Math.min(100, Math.max(0, Math.round(Number(card.progress) || 0)));
+  }
+  const checklist = card?.checklist || [];
+  if (checklist.length) return Math.round((checklist.filter((item) => item.done).length / checklist.length) * 100);
+  return card?.columnId === board?.columns?.at(-1)?.id ? 100 : 0;
+}
+
 function buildProjectXml(board) {
   let uidValue = 1;
   let idValue = 1;
@@ -157,7 +166,7 @@ function buildProjectXml(board) {
     const cards = board.cards.filter((card) => !card.archived && card.columnId === column.id);
     const starts = cards.map((card) => projectDate(card.createdAt)).sort();
     const finishes = cards.map((card) => projectDate(card.due || card.createdAt, '17:00:00')).sort();
-    const percent = columnIndex === board.columns.length - 1 ? 100 : 0;
+    const percent = cards.length ? Math.round(cards.reduce((sum, card) => sum + getCardProgress(card, board), 0) / cards.length) : (columnIndex === board.columns.length - 1 ? 100 : 0);
     tasks.push(`<Task><UID>${uidValue++}</UID><ID>${idValue++}</ID><Name>${xmlEscape(column.title)}</Name><Type>1</Type><IsNull>0</IsNull><CreateDate>${today}</CreateDate><WBS>${columnIndex + 1}</WBS><OutlineNumber>${columnIndex + 1}</OutlineNumber><OutlineLevel>1</OutlineLevel><Priority>500</Priority><Start>${starts[0] || today}</Start><Finish>${finishes.at(-1) || projectDate(null, '17:00:00')}</Finish><Summary>1</Summary><PercentComplete>${percent}</PercentComplete><PercentWorkComplete>${percent}</PercentWorkComplete></Task>`);
     cards.forEach((card, cardIndex) => {
       let start = projectDate(card.createdAt);
@@ -167,7 +176,7 @@ function buildProjectXml(board) {
       const checklistNotes = checklist.map((item) => `${item.flagged ? '🚩 ' : ''}${item.done ? '☑' : '☐'} ${item.text}`).join('\n');
       const notes = `${column.title}${card.description ? `\n\n${card.description}` : ''}${checklistNotes ? `\n\n${checklistNotes}` : ''}`;
       const hasRedFlag = card.flagged || checklist.some((item) => item.flagged && !item.done);
-      const cardPercent = percent === 100 ? 100 : (checklist.length ? Math.round((checklist.filter((item) => item.done).length / checklist.length) * 100) : 0);
+      const cardPercent = getCardProgress(card, board);
       const cardTaskUid = uidValue++;
       tasks.push(`<Task><UID>${cardTaskUid}</UID><ID>${idValue++}</ID><Name>${xmlEscape(card.title)}</Name><Type>1</Type><IsNull>0</IsNull><CreateDate>${projectDate(card.createdAt)}</CreateDate><WBS>${columnIndex + 1}.${cardIndex + 1}</WBS><OutlineNumber>${columnIndex + 1}.${cardIndex + 1}</OutlineNumber><OutlineLevel>2</OutlineLevel><Priority>${hasRedFlag ? 1000 : (priorityMap[card.priority] || 500)}</Priority><Start>${start}</Start><Finish>${finish}</Finish><Duration>PT8H0M0S</Duration><DurationFormat>7</DurationFormat><Work>PT8H0M0S</Work><Summary>0</Summary><PercentComplete>${cardPercent}</PercentComplete><PercentWorkComplete>${cardPercent}</PercentWorkComplete><Notes>${xmlEscape(notes)}</Notes></Task>`);
       if (resourceUids.has(card.assigneeId)) assignments.push({ taskUid: cardTaskUid, resourceUid: resourceUids.get(card.assigneeId), percent: cardPercent });
@@ -180,7 +189,7 @@ function buildProjectXml(board) {
   const assignmentsXml = assignments.map((assignment, index) => `<Assignment><UID>${index + 1}</UID><TaskUID>${assignment.taskUid}</TaskUID><ResourceUID>${assignment.resourceUid}</ResourceUID><PercentWorkComplete>${assignment.percent}</PercentWorkComplete><Units>1</Units><Work>PT8H0M0S</Work></Assignment>`).join('');
   const resourcesSection = resourcesXml ? `<Resources>${resourcesXml}</Resources>` : '';
   const assignmentsSection = assignmentsXml ? `<Assignments>${assignmentsXml}</Assignments>` : '';
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<Project xmlns="http://schemas.microsoft.com/project"><SaveVersion>12</SaveVersion><Name>${xmlEscape(board.title)}.xml</Name><Title>${xmlEscape(board.title)}</Title><Company>Technochip</Company><Author>Grigory Bzhitov</Author><ScheduleFromStart>1</ScheduleFromStart><StartDate>${today}</StartDate><DefaultStartTime>09:00:00</DefaultStartTime><DefaultFinishTime>17:00:00</DefaultFinishTime><MinutesPerDay>480</MinutesPerDay><MinutesPerWeek>2400</MinutesPerWeek><DaysPerMonth>20</DaysPerMonth><Tasks>${tasks.join('')}</Tasks>${resourcesSection}${assignmentsSection}</Project>`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<Project xmlns="http://schemas.microsoft.com/project"><SaveVersion>12</SaveVersion><Name>${xmlEscape(board.title)}.xml</Name><Title>${xmlEscape(board.title)}</Title><Company>Technochip</Company><Author>Grigory Bzhitov</Author><ScheduleFromStart>1</ScheduleFromStart><StartDate>${today}</StartDate><CurrencyCode>USD</CurrencyCode><DefaultStartTime>09:00:00</DefaultStartTime><DefaultFinishTime>17:00:00</DefaultFinishTime><MinutesPerDay>480</MinutesPerDay><MinutesPerWeek>2400</MinutesPerWeek><DaysPerMonth>20</DaysPerMonth><Tasks>${tasks.join('')}</Tasks>${resourcesSection}${assignmentsSection}</Project>`;
 }
 
 function render() {
@@ -257,10 +266,13 @@ function cardHtml(card) {
   const doneItems = checklist.filter((item) => item.done).length;
   const flaggedItems = checklist.filter((item) => item.flagged && !item.done).length;
   const isFlagged = card.flagged || flaggedItems > 0;
+  const progress = getCardProgress(card);
   return `<article class="card ${isFlagged ? 'is-flagged' : ''}" draggable="true" data-card-id="${card.id}" style="--card-color:${cardColor}">
     <div class="card-top">${isFlagged ? '<span class="red-flag">🚩</span>' : ''}<span class="priority ${card.priority}"></span><h3 class="card-title">${escapeHtml(card.title)}</h3></div>
     ${card.description ? `<p class="card-description">${escapeHtml(card.description)}</p>` : ''}
+    <div class="card-progress" title="${progress}%"><span style="width:${progress}%"></span></div>
     <div class="card-footer">
+      <span class="progress-text">${progress}%</span>
       ${dateText ? `<span class="due ${overdue ? 'overdue' : ''}">◷ ${dateText}</span>` : `<span>${t('note')}</span>`}
       ${assignee ? `<span class="assignee-chip" title="${escapeHtml(assignee.email)}"><i class="assignee-dot" style="--assignee-color:${assignee.color}"></i>${escapeHtml(assignee.name)} <span class="assignee-email">· ${escapeHtml(assignee.email)}</span></span>` : ''}
       ${checklist.length ? `<span class="checklist-summary">☑ ${doneItems}/${checklist.length}</span>` : ''}
@@ -308,6 +320,7 @@ function openCardDialog(card = null) {
   $('#card-column').value = card?.columnId || board.columns[0].id;
   $('#card-assignee').innerHTML = `<option value="">${t('unassigned')}</option>${state.data.users.map((user) => `<option value="${user.id}">${escapeHtml(user.name)} — ${escapeHtml(user.email)}</option>`).join('')}`;
   $('#card-assignee').value = card?.assigneeId || '';
+  $('#card-progress').value = getCardProgress(card, board);
   els.cardDialog.showModal();
   setTimeout(() => $('#card-title').focus(), 0);
 }
@@ -323,7 +336,7 @@ function openTextDialog({ title, label, value = '', action }) {
   $('#text-dialog-input').value = value;
   state.textDialogAction = action;
   els.textDialog.showModal();
-  setTimeout(() => $('#text-dialog-input').focus(), 0);
+  setTimeout(() => { $('#text-dialog-input').focus(); $('#text-dialog-input').select(); }, 0);
 }
 
 function archiveCard(cardId) {
@@ -349,10 +362,19 @@ $('#add-column').addEventListener('click', () => openTextDialog({ title: t('newC
 } }));
 $('#add-card').addEventListener('click', () => openCardDialog());
 
-els.cardDialog.addEventListener('click', (event) => {
-  if (!event.target.closest('[data-close-dialog]')) return;
-  els.cardDialog.close('cancel');
+document.addEventListener('click', (event) => {
+  const closeButton = event.target.closest('[data-close-dialog]');
+  if (!closeButton) return;
+  const dialog = closeButton.closest('dialog');
+  if (dialog?.open) dialog.close('cancel');
 });
+
+document.querySelectorAll('dialog').forEach((dialog) => dialog.addEventListener('click', (event) => {
+  if (event.target !== dialog || !dialog.open) return;
+  const rect = dialog.getBoundingClientRect();
+  const outsideDialog = event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom;
+  if (outsideDialog) dialog.close('cancel');
+}));
 
 els.boardList.addEventListener('click', (event) => {
   const item = event.target.closest('[data-board-id]');
@@ -375,16 +397,52 @@ els.kanban.addEventListener('click', (event) => {
   if (cardElement) openCardDialog(activeBoard().cards.find((card) => card.id === cardElement.dataset.cardId));
 });
 
+els.kanban.addEventListener('input', (event) => {
+  const input = event.target.closest('[data-column-title]');
+  if (!input) return;
+  const column = activeBoard().columns.find((item) => item.id === input.dataset.columnTitle);
+  if (column && input.value.trim()) {
+    if (input.dataset.originalTitle === undefined) input.dataset.originalTitle = column.title;
+    column.title = input.value;
+    save();
+  }
+});
+
+els.kanban.addEventListener('focusin', (event) => {
+  const input = event.target.closest('[data-column-title]');
+  if (input) input.dataset.originalTitle = input.value;
+});
+
 els.kanban.addEventListener('change', (event) => {
   const input = event.target.closest('[data-column-title]');
-  if (input) { const column = activeBoard().columns.find((item) => item.id === input.dataset.columnTitle); if (column && input.value.trim()) { column.title = input.value.trim(); render(); } }
+  if (!input) return;
+  const column = activeBoard().columns.find((item) => item.id === input.dataset.columnTitle);
+  if (!column) return;
+  const title = input.value.trim();
+  if (title) { column.title = title; input.value = title; save(); }
+  else input.value = column.title;
+});
+
+els.kanban.addEventListener('keydown', (event) => {
+  const input = event.target.closest('[data-column-title]');
+  if (!input) return;
+  if (event.key === 'Enter') { event.preventDefault(); input.blur(); }
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    const column = activeBoard().columns.find((item) => item.id === input.dataset.columnTitle);
+    const originalTitle = input.dataset.originalTitle || column?.title || '';
+    if (column) column.title = originalTitle;
+    input.value = originalTitle;
+    save();
+    input.blur();
+  }
 });
 
 els.cardForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const board = activeBoard();
   const id = $('#card-id').value;
-  const values = { title: $('#card-title').value.trim(), description: $('#card-description').value.trim(), columnId: $('#card-column').value, priority: $('#card-priority').value, due: $('#card-due').value, color: $('#card-color').value, assigneeId: $('#card-assignee').value || null, flagged: $('#card-flagged').checked, checklist: state.checklistDraft.filter((item) => item.text.trim()).map((item) => ({ ...item, text: item.text.trim() })) };
+  const values = { title: $('#card-title').value.trim(), description: $('#card-description').value.trim(), columnId: $('#card-column').value, priority: $('#card-priority').value, due: $('#card-due').value, color: $('#card-color').value, assigneeId: $('#card-assignee').value || null, progress: Math.min(100, Math.max(0, Math.round(Number($('#card-progress').value) || 0))), flagged: $('#card-flagged').checked, checklist: state.checklistDraft.filter((item) => item.text.trim()).map((item) => ({ ...item, text: item.text.trim() })) };
   if (!values.title) return;
   const existing = board.cards.find((card) => card.id === id);
   if (existing) Object.assign(existing, values, { updatedAt: now() });
@@ -536,7 +594,6 @@ $('#export-project').addEventListener('click', exportActiveBoardToProject);
 $('#export-project-board').addEventListener('click', exportActiveBoardToProject);
 
 $('#show-archive').addEventListener('click', () => { renderArchive(); els.archiveDialog.showModal(); });
-$('#close-archive').addEventListener('click', () => els.archiveDialog.close());
 els.archiveList.addEventListener('click', (event) => {
   const restore = event.target.closest('[data-restore-card]');
   const remove = event.target.closest('[data-delete-card]');
