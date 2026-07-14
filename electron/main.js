@@ -1,10 +1,51 @@
 const { app, BrowserWindow, ipcMain, nativeImage, Tray, Menu, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { readProjectFile, writeProjectFile } = require('./storage');
 
 let mainWindow;
 let tray;
 let isQuitting = false;
+let currentDocumentPath = null;
+let latestProjectJson = null;
+
+const autosavePath = () => path.join(app.getPath('userData'), 'kanban-stickers-autosave.json');
+
+function sendMenuCommand(command) {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('menu:command', command);
+}
+
+function createApplicationMenu() {
+  return Menu.buildFromTemplate([
+    {
+      label: 'File',
+      submenu: [
+        { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => sendMenuCommand('save') },
+        { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: () => sendMenuCommand('save-as') },
+        { type: 'separator' },
+        { label: 'Import…', accelerator: 'CmdOrCtrl+O', click: () => sendMenuCommand('import') },
+        { label: 'Export backup…', click: () => sendMenuCommand('export') },
+        { label: 'Export board to Microsoft Project…', click: () => sendMenuCommand('export-project') },
+        { type: 'separator' },
+        { label: 'Exit', accelerator: 'Alt+F4', click: () => { isQuitting = true; app.quit(); } }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        { label: 'Zoom in', accelerator: 'CmdOrCtrl+Plus', click: () => sendMenuCommand('zoom-in') },
+        { label: 'Zoom out', accelerator: 'CmdOrCtrl+-', click: () => sendMenuCommand('zoom-out') },
+        { label: 'Reset zoom', accelerator: 'CmdOrCtrl+0', click: () => sendMenuCommand('zoom-reset') },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Help',
+      submenu: [{ label: 'About Kanban Stickers', click: () => dialog.showMessageBox(mainWindow, { type: 'info', title: 'Kanban Stickers', message: 'Kanban Stickers', detail: 'Made and developed by Technochip\nowned by Grigory Bzhitov' }) }]
+    }
+  ]);
+}
 
 function createTrayIcon() {
   const svg = `
@@ -34,8 +75,10 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, '..', 'src', 'index.html'));
+  Menu.setApplicationMenu(createApplicationMenu());
   mainWindow.once('ready-to-show', () => mainWindow.show());
   mainWindow.on('close', (event) => {
+    if (latestProjectJson) writeProjectFile(autosavePath(), latestProjectJson);
     if (!isQuitting) {
       event.preventDefault();
       mainWindow.hide();
@@ -67,6 +110,39 @@ app.whenReady().then(() => {
 
   ipcMain.handle('app:get-login-item', () => app.getLoginItemSettings().openAtLogin);
 
+  ipcMain.handle('data:load-auto', () => {
+    try { latestProjectJson = readProjectFile(autosavePath()); }
+    catch (_) { latestProjectJson = null; }
+    return latestProjectJson;
+  });
+
+  ipcMain.handle('data:auto-save', (_event, json) => {
+    latestProjectJson = json;
+    writeProjectFile(autosavePath(), json);
+    return true;
+  });
+
+  ipcMain.handle('data:save', (_event, json) => {
+    latestProjectJson = json;
+    writeProjectFile(autosavePath(), json);
+    if (currentDocumentPath) writeProjectFile(currentDocumentPath, json);
+    return { ok: true, filePath: currentDocumentPath || autosavePath() };
+  });
+
+  ipcMain.handle('data:save-as', async (_event, json) => {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: 'Save Kanban Stickers project as',
+      defaultPath: `${new Date().toISOString().slice(0, 10)}-kanban-stickers.json`,
+      filters: [{ name: 'Kanban Stickers project', extensions: ['json'] }]
+    });
+    if (result.canceled || !result.filePath) return { ok: false };
+    currentDocumentPath = result.filePath;
+    latestProjectJson = json;
+    writeProjectFile(autosavePath(), json);
+    writeProjectFile(currentDocumentPath, json);
+    return { ok: true, filePath: currentDocumentPath };
+  });
+
   ipcMain.handle('data:export', async (_event, json) => {
     const result = await dialog.showSaveDialog(mainWindow, {
       title: 'Экспорт Kanban Stickers',
@@ -74,7 +150,7 @@ app.whenReady().then(() => {
       filters: [{ name: 'Kanban backup', extensions: ['json'] }]
     });
     if (result.canceled || !result.filePath) return false;
-    fs.writeFileSync(result.filePath, json, 'utf8');
+    writeProjectFile(result.filePath, json);
     return true;
   });
 
@@ -85,7 +161,10 @@ app.whenReady().then(() => {
       filters: [{ name: 'Kanban backup', extensions: ['json'] }]
     });
     if (result.canceled || !result.filePaths[0]) return null;
-    return fs.readFileSync(result.filePaths[0], 'utf8');
+    currentDocumentPath = result.filePaths[0];
+    latestProjectJson = readProjectFile(currentDocumentPath);
+    writeProjectFile(autosavePath(), latestProjectJson);
+    return latestProjectJson;
   });
 
   ipcMain.handle('data:export-project', async (_event, { xml, boardName }) => {
@@ -104,5 +183,8 @@ app.whenReady().then(() => {
   app.on('activate', () => mainWindow?.show());
 });
 
-app.on('before-quit', () => { isQuitting = true; });
+app.on('before-quit', () => {
+  isQuitting = true;
+  if (latestProjectJson) writeProjectFile(autosavePath(), latestProjectJson);
+});
 app.on('window-all-closed', (event) => event.preventDefault());

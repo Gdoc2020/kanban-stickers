@@ -41,10 +41,16 @@
         <button class="filter-chip" data-filter="high" data-i18n="filterImportant">Важные</button>
         <button class="filter-chip" data-filter="due" data-i18n="filterDue">Со сроком</button>
         <span class="filter-spacer"></span>
+        <div class="zoom-controls" aria-label="Board zoom">
+          <button type="button" class="zoom-button" id="zoom-out" data-i18n-title="zoomOut" aria-label="Zoom out">−</button>
+          <button type="button" class="zoom-level" id="zoom-reset" data-i18n-title="zoomReset" aria-label="Reset zoom">100%</button>
+          <button type="button" class="zoom-button" id="zoom-in" data-i18n-title="zoomIn" aria-label="Zoom in">＋</button>
+        </div>
+        <button type="button" class="quiet-button" id="export-project-board" data-i18n="exportBoardProject">⇩ Microsoft Project</button>
         <button class="quiet-button" id="add-column" data-i18n="addColumn">＋ Добавить колонку</button>
       </section>
 
-      <section class="kanban" id="kanban" aria-label="Kanban доска"></section>
+      <section class="kanban" id="kanban" aria-label="Kanban доска"><div class="kanban-content" id="kanban-content"></div></section>
     </main>
   </div>
 
